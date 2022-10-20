@@ -1,0 +1,11 @@
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
+[build]
+target = "x86_64-custom.json"
+rustflags = ["-Cforce-unwind-tables", "-Clink-arg=--no-gc-sections", "-Clink-arg=eh_frame.ld"]
+
+[target.'cfg(target_os = "none")']
+runner = "bootimage runner"
+

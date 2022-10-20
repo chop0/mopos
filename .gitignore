@@ -1,0 +1,7 @@
+/target
+build-binutils
+rust-os-gdb
+binutils-gdb
+peda-session-1.txt
+.idea
+.gdb_history
