@@ -2,18 +2,18 @@ use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
 use alloc::boxed::Box;
 use alloc::collections::LinkedList;
 use core::arch::asm;
-use core::future::Future;
 use core::pin::Pin;
 use core::sync::atomic::Ordering::SeqCst;
 use core::task::Waker;
 
 use conquer_once::spin::OnceCell;
 use crossbeam_queue::ArrayQueue;
-use x86_64::instructions::interrupts::without_interrupts;
 
-use crate::interrupts::{InterruptIndex, PICS, StandardContext, InterruptFrame, attach_new_interrupt_handler};
-use crate::{INITIALISED, println, println_immediate, serial, vga_buffer};
+use crate::{INITIALISED, println};
 use crate::concurrency::mutex::{Mutex, MutexGuard};
+use crate::interrupts::{
+    attach_new_interrupt_handler, InterruptFrame, InterruptIndex, PICS, StandardContext,
+};
 use crate::task::PreemptiveTask;
 
 use super::TaskId;
@@ -38,14 +38,17 @@ fn _on_task_done(_: &mut StandardContext) {
 
 pub extern "C" fn end_curr_task() -> ! {
     unsafe {
-        asm!(r"
+        asm!(
+            r"
         mov rax, 0
         int 0x80
-        ", options(noreturn))
+        ",
+            options(noreturn)
+        )
     }
 }
 
-pub extern "C" fn yield_()  {
+pub extern "C" fn yield_() {
     unsafe {
         // asm!(r"
         // mov rax, 1
@@ -55,14 +58,15 @@ pub extern "C" fn yield_()  {
 }
 
 pub extern "C" fn timer_interrupt_handler(
-    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext,
+    interrupt_frame: &mut InterruptFrame,
+    ctx: &mut StandardContext,
 ) {
     if !INITIALISED.load(SeqCst) {
         unsafe {
             PICS.lock()
                 .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
         }
-        return
+        return;
     }
 
     if let Some(Some(mut guard)) = INSTANCE.get().map(|x| x.try_lock()) {
@@ -81,7 +85,6 @@ pub extern "C" fn timer_interrupt_handler(
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
     }
 }
-
 
 pub static INSTANCE: OnceCell<Mutex<Executor>> = OnceCell::uninit();
 
@@ -121,7 +124,11 @@ impl Executor {
         Some(id)
     }
 
-    pub fn scheduler_loop(mut self: MutexGuard<Self>, ictx: &mut InterruptFrame, sctx: &mut StandardContext) {
+    pub fn scheduler_loop(
+        mut self: MutexGuard<Self>,
+        ictx: &mut InterruptFrame,
+        sctx: &mut StandardContext,
+    ) {
         if let Some(next_task) = self.task_queue.pop_front() &&
         let Some(task) = self.tasks.get_mut(&next_task) &&
         let Some(ctx) = task.poll()
@@ -131,7 +138,6 @@ impl Executor {
         }
     }
 }
-
 
 struct TaskWaker {
     task_id: TaskId,

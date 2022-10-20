@@ -1,15 +1,15 @@
 use alloc::sync::Arc;
 use core::cell::RefCell;
 use core::ops::Deref;
-use core::sync::atomic::{AtomicPtr, Ordering};
 use core::sync::atomic::Ordering::SeqCst;
+use core::sync::atomic::{AtomicPtr, Ordering};
 
 use crate::Mutex;
 
 pub struct RCU<T> {
     root: RefCell<Arc<T>>,
     datum: AtomicPtr<T>,
-    swap_mutex: Mutex<()>
+    swap_mutex: Mutex<()>,
 }
 
 unsafe impl<T: Send + Sync> Send for RCU<T> {}
@@ -27,19 +27,17 @@ impl<T> RCU<T> {
         Self {
             root: RefCell::new(arc.clone()),
             datum: AtomicPtr::new(Arc::as_ptr(&arc) as *mut _),
-            swap_mutex: Mutex::new(())
+            swap_mutex: Mutex::new(()),
         }
     }
 
     fn get_arc(&self) -> Arc<T> {
-        unsafe {
-            Arc::from_raw(self.datum.load(Ordering::SeqCst))
-        }
+        unsafe { Arc::from_raw(self.datum.load(Ordering::SeqCst)) }
     }
 
     pub fn read(&self) -> ReadGuard<T> {
         ReadGuard {
-            datum: self.get_arc()
+            datum: self.get_arc(),
         }
     }
 
@@ -47,7 +45,7 @@ impl<T> RCU<T> {
         let guard = self.swap_mutex.lock();
         let new_arc = Arc::new(new_value);
         self.datum.store(Arc::as_ptr(&new_arc) as *mut _, SeqCst);
-        let result = self.root.replace(new_arc.clone());
+        let result = self.root.replace(new_arc);
         drop(guard);
 
         result
@@ -55,13 +53,13 @@ impl<T> RCU<T> {
 }
 
 pub struct ReadGuard<T> {
-    datum: Arc<T>
+    datum: Arc<T>,
 }
 
 impl<T> Deref for ReadGuard<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &*self.datum
+        &self.datum
     }
 }

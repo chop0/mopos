@@ -1,5 +1,3 @@
-#![no_std]
-
 use x86_64::instructions::port::Port;
 const CMD_INIT: u8 = 0x11;
 const CMD_END_OF_INTERRUPT: u8 = 0x20;

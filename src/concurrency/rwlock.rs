@@ -1,7 +1,7 @@
-use core::sync::atomic::{AtomicUsize, Ordering};
+use crate::task::executor::yield_;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
-use crate::task::executor::yield_;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct RwLock<T> {
     pending_or_locked_writers: AtomicUsize,
@@ -35,7 +35,8 @@ impl<T> RwLock<T> {
     }
 
     pub fn write(&self) -> WriteGuard<T> {
-        self.pending_or_locked_writers.fetch_add(1, Ordering::AcqRel);
+        self.pending_or_locked_writers
+            .fetch_add(1, Ordering::AcqRel);
 
         loop {
             'inner: loop {
@@ -45,7 +46,11 @@ impl<T> RwLock<T> {
                     continue 'inner;
                 }
 
-                if self.holder_count.compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire).is_ok() {
+                if self
+                    .holder_count
+                    .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+                {
                     return WriteGuard {
                         pending: &self.pending_or_locked_writers,
                         holders: &self.holder_count,
@@ -102,13 +107,13 @@ impl<'a, T> Drop for WriteGuard<'a, T> {
 impl<'a, T> Deref for WriteGuard<'a, T> {
     type Target = T;
 
-    fn deref(&self) -> & Self::Target {
+    fn deref(&self) -> &Self::Target {
         self.datum
     }
 }
 
 impl<'a, T> DerefMut for WriteGuard<'a, T> {
-    fn deref_mut(&mut self) -> & mut Self::Target {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         self.datum
     }
 }

@@ -1,9 +1,9 @@
+use crate::concurrency::semaphore::{Semaphore, SemaphoreGuard};
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
-use crate::concurrency::semaphore::{Semaphore, SemaphoreGuard};
 
 pub struct Mutex<T> {
-   pub semaphore: Semaphore,
+    pub semaphore: Semaphore,
     datum: UnsafeCell<T>,
 }
 
@@ -28,7 +28,7 @@ impl<T> Mutex<T> {
         let guard = self.semaphore.acquire(1);
 
         MutexGuard {
-            inner: guard,
+            _inner: guard,
             reference: unsafe { &mut *self.datum.get() },
         }
     }
@@ -39,14 +39,14 @@ impl<T> Mutex<T> {
 
     pub fn try_lock(&self) -> Option<MutexGuard<T>> {
         Some(MutexGuard {
-            inner: self.semaphore.try_acquire(1)?,
+            _inner: self.semaphore.try_acquire(1)?,
             reference: unsafe { &mut *self.datum.get() },
         })
     }
 }
 
 pub struct MutexGuard<'a, T> {
-    inner: SemaphoreGuard<'a>,
+    _inner: SemaphoreGuard<'a>,
     reference: &'a mut T,
 }
 

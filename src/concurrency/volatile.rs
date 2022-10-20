@@ -4,11 +4,11 @@ use core::ptr;
 pub struct Volatile<T: Copy>(T);
 
 impl<T: Copy> Volatile<T> {
-    #[cfg(feature="const_fn")]
+    #[cfg(feature = "const_fn")]
     pub const fn new(value: T) -> Volatile<T> {
         Volatile(value)
     }
-    #[cfg(not(feature="const_fn"))]
+    #[cfg(not(feature = "const_fn"))]
     pub fn new(value: T) -> Volatile<T> {
         Volatile(value)
     }
@@ -19,7 +19,8 @@ impl<T: Copy> Volatile<T> {
         unsafe { ptr::write_volatile(&mut self.0, value) };
     }
     pub fn update<F>(&mut self, f: F)
-        where F: FnOnce(&mut T)
+    where
+        F: FnOnce(&mut T),
     {
         let mut value = self.read();
         f(&mut value);

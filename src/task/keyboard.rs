@@ -1,5 +1,5 @@
 use crate::{print, println};
-use conquer_once::spin::{Once, OnceCell};
+use conquer_once::spin::{OnceCell};
 use core::{
     pin::Pin,
     task::{Context, Poll},
@@ -19,7 +19,7 @@ static WAKER: AtomicWaker = AtomicWaker::new();
 /// Must not block or allocate.
 pub(crate) fn add_scancode(scancode: u8) {
     if let Ok(queue) = SCANCODE_QUEUE.try_get() {
-        if let Err(_) = queue.push(scancode) {
+        if queue.push(scancode).is_err() {
             println!("WARNING: scancode queue full; dropping keyboard input");
         } else {
             WAKER.wake();
@@ -55,7 +55,7 @@ impl Stream for ScancodeStream {
             return Poll::Ready(Some(scancode));
         }
 
-        WAKER.register(&cx.waker());
+        WAKER.register(cx.waker());
         match queue.pop() {
             Ok(scancode) => {
                 WAKER.take();

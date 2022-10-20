@@ -1,3 +1,5 @@
+use crate::concurrency::mutex::{Mutex, MutexGuard};
+use crate::{println_immediate, LOCKS};
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
 use fixed_size_block::FixedSizeBlockAllocator;
@@ -7,8 +9,6 @@ use x86_64::{
     },
     VirtAddr,
 };
-use crate::concurrency::mutex::{Mutex, MutexGuard};
-use crate::{LOCKS, println_immediate};
 
 pub mod bump;
 pub mod fixed_size_block;
@@ -17,10 +17,8 @@ pub mod linked_list;
 pub const HEAP_START: *mut u8 = 0x_4444_4444_0000 as *mut u8;
 pub const HEAP_SIZE: usize = 4096 * 800; // 800 pages seems reasonable
 
-
 #[global_allocator]
 pub static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
-
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -40,7 +38,7 @@ pub fn init_heap(
             .ok_or(MapToError::FrameAllocationFailed)?;
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe {
-           mapper.map_to(page, frame, flags, frame_allocator)?.flush() ;
+            mapper.map_to(page, frame, flags, frame_allocator)?.flush();
         };
     }
 

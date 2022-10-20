@@ -7,13 +7,13 @@ use core::sync::atomic::Ordering;
 use conquer_once::raw::Lazy;
 use conquer_once::spin::Spin;
 use crossbeam_queue::SegQueue;
-use x86_64::instructions::interrupts;
+
 
 use crate::concurrency::mutex::Mutex;
 use crate::concurrency::rcu::RCU;
 use crate::concurrency::volatile::Volatile;
-use crate::INITIALISED;
 use crate::vga_buffer::Color::{Black, Red, White};
+use crate::INITIALISED;
 
 pub static WRITER: Mutex<Writer> = Mutex::new(Writer {
     column_position: 0,
@@ -194,17 +194,17 @@ macro_rules! eprint {
 /// Like the `println!` macro in the standard library, but prints to the VGA text buffer.
 #[macro_export]
 macro_rules! eprintln {
-    () => {$crate::eprint!("\n"); crate::flush(); serial::flush();};
+    () => {$crate::eprint!("\n"); $crate::flush(); serial::flush();};
     ($($arg:tt)*) => {$crate::eprint!("{}\n", format_args!($($arg)*)); $crate::vga_buffer::flush(); $crate::serial::flush(); };
 }
 
 #[macro_export]
 macro_rules! println_immediate {
-    () => {$crate::print!("\n"); crate::flush(); serial::flush();};
+    () => {$crate::print!("\n"); $crate::flush(); serial::flush();};
     ($($arg:tt)*) => {$crate::print!("{}\n", format_args!($($arg)*)); $crate::vga_buffer::flush(); $crate::serial::flush(); };
 }
 
-static BUFFER: Lazy<RCU<SegQueue<(String, ColorCode)>>, Spin> = Lazy::new(|| Default::default());
+static BUFFER: Lazy<RCU<SegQueue<(String, ColorCode)>>, Spin> = Lazy::new(Default::default);
 
 const ERR_COLOUR: ColorCode = ColorCode::new(Red, White);
 const DEBUG_COLOUR: ColorCode = ColorCode::new(White, Black);
@@ -241,9 +241,8 @@ pub fn _eprint(args: fmt::Arguments) {
         writer.color_code = ERR_COLOUR;
         writer.write_fmt(args).unwrap();
     }
-    return;
+    
 }
-
 
 pub fn flush() {
     if let Some(mut s) = WRITER.try_lock() {
@@ -275,13 +274,11 @@ fn test_println_output() {
     use x86_64::instructions::interrupts;
 
     let s = "Some test string that fits on a single line";
-    interrupts::without_interrupts(|| {
-        unsafe {
-            writeln!(WRITER.lock(), "\n{}", s).expect("writeln failed");
-            for (i, c) in s.chars().enumerate() {
-                let screen_char = (*WRITER.lock().buffer).chars[BUFFER_HEIGHT - 2][i].read();
-                assert_eq!(char::from(screen_char.ascii_character), c);
-            }
+    interrupts::without_interrupts(|| unsafe {
+        writeln!(WRITER.lock(), "\n{}", s).expect("writeln failed");
+        for (i, c) in s.chars().enumerate() {
+            let screen_char = (*WRITER.lock().buffer).chars[BUFFER_HEIGHT - 2][i].read();
+            assert_eq!(char::from(screen_char.ascii_character), c);
         }
     });
 }

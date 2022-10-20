@@ -10,8 +10,8 @@ use crossbeam_queue::SegQueue;
 
 use crate::concurrency::mutex::Mutex;
 use crate::concurrency::rcu::RCU;
-use crate::INITIALISED;
 use crate::uart::SerialPort;
+use crate::INITIALISED;
 
 pub static SERIAL1: Lazy<Mutex<SerialPort>, Spin> = Lazy::new(|| {
     let mut serial_port = unsafe { SerialPort::new(0x3F8) };
@@ -30,13 +30,10 @@ impl Drop for OutputBuffer {
     }
 }
 
-static BUFFER: Lazy<RCU<SegQueue<String>>, Spin> = Lazy::new(|| Default::default());
+static BUFFER: Lazy<RCU<SegQueue<String>>, Spin> = Lazy::new(Default::default);
 
 #[doc(hidden)]
-pub fn _print(args: ::core::fmt::Arguments) {
-    use core::fmt::Write;
-    use x86_64::instructions::interrupts;
-
+pub fn _print(args: fmt::Arguments) {
     if !INITIALISED.load(SeqCst) {
         if let Some(mut s) = SERIAL1.try_lock() {
             s.write_fmt(args).unwrap();
@@ -61,7 +58,7 @@ pub fn _eprint(args: fmt::Arguments) {
         };
         writer.write_fmt(args).unwrap();
     }
-    return;
+    
 }
 
 pub fn flush() {

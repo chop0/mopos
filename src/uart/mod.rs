@@ -1,6 +1,3 @@
-#![no_std]
-#![warn(missing_docs)]
-
 use bitflags::bitflags;
 
 macro_rules! wait_for {

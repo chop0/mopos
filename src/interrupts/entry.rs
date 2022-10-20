@@ -1,7 +1,6 @@
-use core::arch::asm;
-use x86_64::structures::idt::PageFaultErrorCode;
-use crate::interrupts::StandardContext;
-use crate::println_immediate;
+
+
+
 
 
 #[macro_export]
@@ -51,8 +50,6 @@ macro_rules! pop_state {
         "
     };
 }
-
-
 
 macro_rules! ctx_save_trampoline_error_code {
     ($callback:ident) => {{
@@ -138,6 +135,8 @@ macro_rules! set_handler {
 #[macro_export]
 macro_rules! set_handler_error_code {
     ($target: expr, $handler: ident) => {
-        $target.set_handler_addr(VirtAddr::new(ctx_save_trampoline_error_code!($handler) as u64))
+        $target.set_handler_addr(VirtAddr::new(
+            ctx_save_trampoline_error_code!($handler) as u64
+        ))
     };
 }

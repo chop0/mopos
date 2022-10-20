@@ -11,12 +11,13 @@ use core::sync::atomic::Ordering;
 
 use bootloader::{BootInfo, entry_point};
 
-use barefuzz::{allocator, eprintln, hlt_loop, INITIALISED, LOCKS, memory, println, serial, vga_buffer};
+use barefuzz::{
+    allocator, eprintln, INITIALISED, LOCKS, memory, println, serial, vga_buffer,
+};
 use barefuzz::interrupts::PICS;
 use barefuzz::memory::BootInfoFrameAllocator;
 use barefuzz::serial::SERIAL1;
 use barefuzz::task::executor;
-use barefuzz::task::executor::yield_;
 use barefuzz::vga_buffer::WRITER;
 
 entry_point!(_kernel_entry);
@@ -34,8 +35,6 @@ fn _kernel_entry(boot_info: &'static BootInfo) -> ! {
     LOCKS.lock().push(&WRITER.semaphore);
     LOCKS.lock().push(&PICS.semaphore);
 
-
-
     executor::init();
     INITIALISED.store(true, Ordering::SeqCst);
     // kernel_main()
@@ -45,19 +44,16 @@ fn _kernel_entry(boot_info: &'static BootInfo) -> ! {
 fn kernel_main() -> ! {
     {
         let mut executor = executor::INSTANCE.get().unwrap().lock();
-        executor.spawn(|| {
-            loop {
-                serial::flush();
-                vga_buffer::flush();
-            }
+        executor.spawn(|| loop {
+            serial::flush();
+            vga_buffer::flush();
         });
 
         executor.spawn(|| {
             let mut i = 10_000;
             loop {
-
                 i += 1;
-                if i % 10000 == 0{
+                if i % 10000 == 0 {
                     println!("t1 {}", i);
                 }
             }
@@ -66,9 +62,8 @@ fn kernel_main() -> ! {
         executor.spawn(|| {
             let mut i = 0;
             loop {
-
                 i += 1;
-                if i % 10000 == 0{
+                if i % 10000 == 0 {
                     println!("t2 {}", i);
                 }
             }
@@ -99,7 +94,6 @@ fn panic(info: &PanicInfo) -> ! {
     serial::flush();
     vga_buffer::flush();
     eprintln!("{}", info);
-
 
     serial::flush();
     vga_buffer::flush();

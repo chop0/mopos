@@ -1,7 +1,6 @@
-use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use crate::task::executor::yield_;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
-static FORCE_DISABLE: AtomicBool = AtomicBool::new(false);
 pub struct Semaphore {
     permits: AtomicUsize,
 }
@@ -17,8 +16,16 @@ impl Semaphore {
         loop {
             let available_permits = self.permits.load(Ordering::Acquire);
 
-            if available_permits >= desired_permits &&
-                self.permits.compare_exchange(available_permits, available_permits - desired_permits, Ordering::AcqRel, Ordering::Acquire).is_ok()
+            if available_permits >= desired_permits
+                && self
+                    .permits
+                    .compare_exchange(
+                        available_permits,
+                        available_permits - desired_permits,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_ok()
             {
                 return SemaphoreGuard(self, desired_permits);
             }
@@ -32,8 +39,16 @@ impl Semaphore {
     pub fn try_acquire(&self, desired_permits: usize) -> Option<SemaphoreGuard> {
         let available_permits = self.permits.load(Ordering::Acquire);
 
-        if available_permits >= desired_permits &&
-            self.permits.compare_exchange(available_permits, available_permits - desired_permits, Ordering::AcqRel, Ordering::Acquire).is_ok()
+        if available_permits >= desired_permits
+            && self
+                .permits
+                .compare_exchange(
+                    available_permits,
+                    available_permits - desired_permits,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
         {
             Some(SemaphoreGuard(self, desired_permits))
         } else {
@@ -45,8 +60,16 @@ impl Semaphore {
         loop {
             let available_permits = self.permits.load(Ordering::Acquire);
 
-            if available_permits >= desired_permits &&
-                self.permits.compare_exchange(available_permits, available_permits - desired_permits, Ordering::AcqRel, Ordering::Acquire).is_ok()
+            if available_permits >= desired_permits
+                && self
+                    .permits
+                    .compare_exchange(
+                        available_permits,
+                        available_permits - desired_permits,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_ok()
             {
                 return available_permits - desired_permits;
             } else {

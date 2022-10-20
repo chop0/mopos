@@ -1,14 +1,18 @@
-use alloc::boxed::Box;
-use alloc::vec::Vec;
-use core::{future::Future, mem, pin::Pin, sync::atomic::{AtomicU64, Ordering}, task::{Poll}};
-use core::borrow::{Borrow, BorrowMut};
-use core::cell::{Cell, RefCell, RefMut, UnsafeCell};
-use core::mem::ManuallyDrop;
-use core::ops::{Deref, DerefMut};
-use core::task::Context;
 use crate::interrupts::{InterruptFrame, StandardContext};
 use crate::println;
 use crate::task::executor::end_curr_task;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+
+use core::cell::{Cell, UnsafeCell};
+
+use core::ops::{DerefMut};
+
+use core::{
+    mem,
+    pin::Pin,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 pub mod executor;
 pub mod keyboard;
@@ -36,40 +40,29 @@ extern "C" fn run_task(task: Pin<&PreemptiveTask>) {
     task.complete.replace(true);
 }
 
-macro_rules! addrof_fn {
-    ($fn:ident) => {{
-            let fn_ptr: u64;
-            unsafe {
-                core::arch::asm!("mov {}, {}", out(reg) fn_ptr, sym $fn);
-            }
-            fn_ptr
-    }};
-}
-
 fn entry_context_for(task: Pin<&PreemptiveTask>) -> ContextState {
-
-
     unsafe {
         let sp = (task.stack.get() as *const u8).add(STACK_SIZE - 8);
         let return_address = sp as *mut extern "C" fn() -> !;
         *return_address = end_curr_task;
-        (InterruptFrame {
-            instruction_pointer: run_task as extern "C" fn(Pin<&PreemptiveTask>) as *const () as u64,
-            stack_pointer: sp as u64,
-            ..Default::default()
-        }, StandardContext {
-            rdi: &*task as *const PreemptiveTask as usize,
-            ..Default::default()
-        })
+        (
+            InterruptFrame {
+                instruction_pointer: run_task as extern "C" fn(Pin<&PreemptiveTask>) as *const ()
+                    as u64,
+                stack_pointer: sp as u64,
+                ..Default::default()
+            },
+            StandardContext {
+                rdi: &*task as *const PreemptiveTask as usize,
+                ..Default::default()
+            },
+        )
     }
 }
 
 fn into_boxed_unsafecell<T, const N: usize>(inp: Box<[T; N]>) -> Box<UnsafeCell<[T; N]>> {
-    unsafe {
-        mem::transmute(inp)
-    }
+    unsafe { mem::transmute(inp) }
 }
-
 
 fn pinned_array_of_default<T: Default, const N: usize>() -> Pin<Box<UnsafeCell<[T; N]>>> {
     let mut vec = Vec::new();
@@ -82,7 +75,6 @@ fn pinned_array_of_default<T: Default, const N: usize>() -> Pin<Box<UnsafeCell<[
     into_boxed_unsafecell(boxed).into()
 }
 
-
 impl PreemptiveTask {
     fn new(entrypoint: fn()) -> Self {
         Self {
@@ -94,14 +86,14 @@ impl PreemptiveTask {
         }
     }
 
-    fn poll(self: &mut Pin<impl DerefMut<Target=Self>>) -> Option<ContextState> {
+    fn poll(self: &mut Pin<impl DerefMut<Target = Self>>) -> Option<ContextState> {
         if self.complete.get() {
             return None;
         }
 
         let new_ctx = match self.cont.take() {
             None => entry_context_for(self.as_ref()),
-            Some(ctx) => ctx
+            Some(ctx) => ctx,
         };
 
         Some(new_ctx)

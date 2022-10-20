@@ -1,18 +1,20 @@
 use core::arch::asm;
-use core::borrow::Borrow;
+
 
 use conquer_once::spin::Lazy;
 use x86_64::registers::rflags::RFlags;
-use x86_64::registers::segmentation::{CS, Segment, SS};
+use x86_64::registers::segmentation::{Segment, CS, SS};
 use x86_64::structures::idt::InterruptDescriptorTable;
 use x86_64::VirtAddr;
 
 pub use user_interrupts::attach_new_interrupt_handler;
 
-use crate::{eprintln, gdt, hlt_loop, println, serial, set_handler, set_handler_error_code, vga_buffer};
 use crate::concurrency::mutex::Mutex;
 use crate::interrupts::user_interrupts::handle_user_interrupt;
 use crate::pic::ChainedPics;
+use crate::{
+    eprintln, gdt, hlt_loop, println, serial, set_handler, set_handler_error_code, vga_buffer,
+};
 
 mod idt;
 
@@ -92,10 +94,20 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
         set_handler!(idt.breakpoint, breakpoint_handler);
         set_handler_error_code!(idt.page_fault, page_fault_handler);
         set_handler_error_code!(idt.segment_not_present, segment_not_present_handler);
-        set_handler_error_code!(idt.double_fault, double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-        set_handler!(idt[InterruptIndex::Timer.as_usize()], timer_interrupt_handler);
-        set_handler!(idt[InterruptIndex::Keyboard.as_usize()], keyboard_interrupt_handler);
-        set_handler!(idt[user_interrupts::USER_INTERRUPT_VECTOR as usize], _handle_user_interrupt);
+        set_handler_error_code!(idt.double_fault, double_fault_handler)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        set_handler!(
+            idt[InterruptIndex::Timer.as_usize()],
+            timer_interrupt_handler
+        );
+        set_handler!(
+            idt[InterruptIndex::Keyboard.as_usize()],
+            keyboard_interrupt_handler
+        );
+        set_handler!(
+            idt[user_interrupts::USER_INTERRUPT_VECTOR as usize],
+            _handle_user_interrupt
+        );
     }
     idt
 });
@@ -104,50 +116,69 @@ pub fn init_idt() {
     IDT.load();
 }
 
-extern "C" fn _handle_user_interrupt(interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext) {
+extern "C" fn _handle_user_interrupt(
+    interrupt_frame: &mut InterruptFrame,
+    ctx: &mut StandardContext,
+) {
     handle_user_interrupt(ctx.rax, interrupt_frame, ctx);
 }
 
 extern "C" fn breakpoint_handler(interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext) {
-    println!("EXCEPTION: BREAKPOINT\n{:#X?}, {:#X?}", interrupt_frame, ctx);
+    println!(
+        "EXCEPTION: BREAKPOINT\n{:#X?}, {:#X?}",
+        interrupt_frame, ctx
+    );
     serial::flush();
     vga_buffer::flush();
 }
 
-extern "C" fn page_fault_handler(
-    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext,
-) {
+extern "C" fn page_fault_handler(interrupt_frame: &mut InterruptFrame, _ctx: &mut StandardContext) {
     use x86_64::registers::control::Cr2;
-    unsafe { crate::allocator::ALLOCATOR.inner.force_unlock(); }
-    eprintln!(r"EXCEPTION: PAGE FAULT
+    unsafe {
+        crate::allocator::ALLOCATOR.inner.force_unlock();
+    }
+    eprintln!(
+        r"EXCEPTION: PAGE FAULT
     Accessed Address: {:X?}
     {:#X?}
-    ", Cr2::read(), interrupt_frame);
+    ",
+        Cr2::read(),
+        interrupt_frame
+    );
     serial::flush();
     vga_buffer::flush();
     hlt_loop();
 }
 
 extern "C" fn segment_not_present_handler(
-    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext,
+    interrupt_frame: &mut InterruptFrame,
+    _ctx: &mut StandardContext,
 ) {
     use x86_64::registers::control::Cr2;
 
-    eprintln!(r"EXCEPTION: SEGMENT NOT PRESENT
+    eprintln!(
+        r"EXCEPTION: SEGMENT NOT PRESENT
     Accessed Address: {:X?}
     {:#X?}
-    ", Cr2::read(), interrupt_frame);
+    ",
+        Cr2::read(),
+        interrupt_frame
+    );
     serial::flush();
     vga_buffer::flush();
     hlt_loop();
 }
 
 extern "C" fn double_fault_handler(
-    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext, error_code: u64,
+    interrupt_frame: &mut InterruptFrame,
+    ctx: &mut StandardContext,
+    error_code: u64,
 ) -> ! {
-    panic!("EXCEPTION: DOUBLE FAULT {}, \n{:#X?} {:#X?}", error_code, interrupt_frame, ctx);
+    panic!(
+        "EXCEPTION: DOUBLE FAULT {}, \n{:#X?} {:#X?}",
+        error_code, interrupt_frame, ctx
+    );
 }
-
 
 extern "C" fn keyboard_interrupt_handler() {
     use x86_64::instructions::port::Port;
