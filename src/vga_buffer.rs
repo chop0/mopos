@@ -7,11 +7,11 @@ use core::sync::atomic::Ordering;
 use conquer_once::raw::Lazy;
 use conquer_once::spin::Spin;
 use crossbeam_queue::SegQueue;
-use volatile::Volatile;
 use x86_64::instructions::interrupts;
+
 use crate::concurrency::mutex::Mutex;
 use crate::concurrency::rcu::RCU;
-use crate::concurrency::rwlock::RwLock;
+use crate::concurrency::volatile::Volatile;
 use crate::INITIALISED;
 use crate::vga_buffer::Color::{Black, Red, White};
 

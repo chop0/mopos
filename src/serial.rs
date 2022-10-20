@@ -3,25 +3,24 @@ use alloc::sync::Arc;
 use core::fmt;
 use core::fmt::Write;
 use core::sync::atomic::Ordering::SeqCst;
+
 use conquer_once::raw::Lazy;
 use conquer_once::spin::Spin;
 use crossbeam_queue::SegQueue;
-use lazy_static::lazy_static;
-use uart_16550::SerialPort;
-use x86_64::instructions::interrupts;
+
 use crate::concurrency::mutex::Mutex;
 use crate::concurrency::rcu::RCU;
-use crate::concurrency::rwlock::RwLock;
 use crate::INITIALISED;
-lazy_static! {
-    pub static ref SERIAL1: Mutex<SerialPort> = {
-        let mut serial_port = unsafe { SerialPort::new(0x3F8) };
-        serial_port.init();
-        Mutex::new(serial_port)
-    };
-}
+use crate::uart::SerialPort;
+
+pub static SERIAL1: Lazy<Mutex<SerialPort>, Spin> = Lazy::new(|| {
+    let mut serial_port = unsafe { SerialPort::new(0x3F8) };
+    serial_port.init();
+    Mutex::new(serial_port)
+});
 
 struct OutputBuffer(SegQueue<String>);
+
 impl Drop for OutputBuffer {
     fn drop(&mut self) {
         let mut s = SERIAL1.lock();

@@ -38,6 +38,8 @@ pub mod serial;
 pub mod task;
 pub mod vga_buffer;
 pub mod concurrency;
+pub mod uart;
+pub mod pic;
 
 pub static INITIALISED: AtomicBool = AtomicBool::new(false);
 

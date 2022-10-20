@@ -1,24 +1,24 @@
 use core::arch::asm;
 use core::borrow::Borrow;
 
-use lazy_static::lazy_static;
-use pic8259::ChainedPics;
+use conquer_once::spin::Lazy;
 use x86_64::registers::rflags::RFlags;
-use x86_64::registers::segmentation::{CS, Segment, SegmentSelector, SS};
+use x86_64::registers::segmentation::{CS, Segment, SS};
 use x86_64::structures::idt::InterruptDescriptorTable;
 use x86_64::VirtAddr;
+
+pub use user_interrupts::attach_new_interrupt_handler;
 
 use crate::{eprintln, gdt, hlt_loop, println, serial, set_handler, set_handler_error_code, vga_buffer};
 use crate::concurrency::mutex::Mutex;
 use crate::interrupts::user_interrupts::handle_user_interrupt;
+use crate::pic::ChainedPics;
 
 mod idt;
 
 #[macro_use]
 mod entry;
 mod user_interrupts;
-
-pub use user_interrupts::attach_new_interrupt_handler;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -79,28 +79,26 @@ impl Default for InterruptFrame {
             code_segment: CS::get_reg().0 as u64,
             stack_segment: SS::get_reg().0 as u64,
             instruction_pointer: 0,
-            stack_pointer: 0
+            stack_pointer: 0,
         }
     }
 }
 
-lazy_static! {
-    static ref IDT: InterruptDescriptorTable = {
-        use crate::task::executor::timer_interrupt_handler;
+static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
+    use crate::task::executor::timer_interrupt_handler;
 
-        let mut idt = InterruptDescriptorTable::new();
-        unsafe {
-            set_handler!(idt.breakpoint, breakpoint_handler);
-            set_handler_error_code!(idt.page_fault, page_fault_handler);
-            set_handler_error_code!(idt.segment_not_present, segment_not_present_handler);
-            set_handler_error_code!(idt.double_fault, double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-            set_handler!(idt[InterruptIndex::Timer.as_usize()], timer_interrupt_handler);
-            set_handler!(idt[InterruptIndex::Keyboard.as_usize()], keyboard_interrupt_handler);
-            set_handler!(idt[user_interrupts::USER_INTERRUPT_VECTOR as usize], _handle_user_interrupt);
-        }
-        idt
-    };
-}
+    let mut idt = InterruptDescriptorTable::new();
+    unsafe {
+        set_handler!(idt.breakpoint, breakpoint_handler);
+        set_handler_error_code!(idt.page_fault, page_fault_handler);
+        set_handler_error_code!(idt.segment_not_present, segment_not_present_handler);
+        set_handler_error_code!(idt.double_fault, double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        set_handler!(idt[InterruptIndex::Timer.as_usize()], timer_interrupt_handler);
+        set_handler!(idt[InterruptIndex::Keyboard.as_usize()], keyboard_interrupt_handler);
+        set_handler!(idt[user_interrupts::USER_INTERRUPT_VECTOR as usize], _handle_user_interrupt);
+    }
+    idt
+});
 
 pub fn init_idt() {
     IDT.load();
@@ -117,7 +115,7 @@ extern "C" fn breakpoint_handler(interrupt_frame: &mut InterruptFrame, ctx: &mut
 }
 
 extern "C" fn page_fault_handler(
-    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext
+    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext,
 ) {
     use x86_64::registers::control::Cr2;
     unsafe { crate::allocator::ALLOCATOR.inner.force_unlock(); }
@@ -131,7 +129,7 @@ extern "C" fn page_fault_handler(
 }
 
 extern "C" fn segment_not_present_handler(
-    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext
+    interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext,
 ) {
     use x86_64::registers::control::Cr2;
 
@@ -147,7 +145,7 @@ extern "C" fn segment_not_present_handler(
 extern "C" fn double_fault_handler(
     interrupt_frame: &mut InterruptFrame, ctx: &mut StandardContext, error_code: u64,
 ) -> ! {
-        panic!("EXCEPTION: DOUBLE FAULT {}, \n{:#X?} {:#X?}", error_code, interrupt_frame, ctx);
+    panic!("EXCEPTION: DOUBLE FAULT {}, \n{:#X?} {:#X?}", error_code, interrupt_frame, ctx);
 }
 
 
